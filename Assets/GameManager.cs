@@ -92,22 +92,7 @@ public class GameManager : MonoBehaviour
         // Save the updated state to PlayFab using CloudScript.
         UpdateGameStateCloud();
 
-        // Check for win/draw.
-        if (CheckWin())
-        {
-            if (currentTurn == myRole) // since checking after switching turn
-                turnText.text = "You Lose!";
-            else
-                turnText.text = $"You Win!";
-            isGameOver = true;
-            return;
-        }
-        if (turnCount >= 9)
-        {
-            isGameOver = true;
-            turnText.text = "It's a draw!";
-            return;
-        }
+        
     }
 
     // Convert the board state array to a single string.
@@ -137,11 +122,15 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
+
     }
 
     void UpdateTurnText()
     {
-        turnText.text = $"Turn: {currentTurn}";
+        if (currentTurn == myRole)
+            turnText.text = "Your Turn!";
+        else
+            turnText.text = "Opponent's Turn";
     }
 
     bool CheckWin()
@@ -162,23 +151,33 @@ public class GameManager : MonoBehaviour
         return false;
     }
 
-    // bool CheckWin()
-    // {
-    //     // Check rows, columns, and diagonals
-    //     for (int i = 0; i < 3; i++)
-    //     {
-    //         if (boardState[i, 0] != "-" && boardState[i, 0] == boardState[i, 1] && boardState[i, 1] == boardState[i, 2]) // horizontal
-    //             return true;
-    //         if (boardState[0, i] != null && boardState[0, i] == boardState[1, i] && boardState[1, i] == boardState[2, i]) // vertical
-    //             return true;
-    //     }
-    //     if (boardState[0, 0] != null && boardState[0, 0] == boardState[1, 1] && boardState[1, 1] == boardState[2, 2]) // diagonal
-    //         return true;
-    //     if (boardState[0, 2] != null && boardState[0, 2] == boardState[1, 1] && boardState[1, 1] == boardState[2, 0]) // diagonal
-    //         return true;
+    void CheckWinner()
+    {
+        // Check rows, columns, and diagonals
+        for (int i = 0; i < 3; i++)
+        {
+            if (boardState[i * 3] != "-" && boardState[i * 3] == boardState[i * 3 + 1] && boardState[i * 3 + 1] == boardState[i * 3 + 2]) // horizontal
+                isGameOver = true;
+            if (boardState[i] != "-" && boardState[i] == boardState[i + 3] && boardState[i + 3] == boardState[i + 6]) // vertical
+                isGameOver = true;
+        }
+        if (boardState[0] != "-" && boardState[0] == boardState[4] && boardState[4] == boardState[8]) // diagonal
+            isGameOver = true;
+        if (boardState[2] != "-" && boardState[2] == boardState[4] && boardState[4] == boardState[6]) // diagonal
+            isGameOver = true;
 
-    //     return false;
-    // }
+        isGameOver = false;
+
+        if (isGameOver)
+        {
+            if (currentTurn == myRole) // since checking after switching turn
+                turnText.text = "You Lose!";
+            else
+                turnText.text = $"You Win!";
+            isGameOver = true;
+            return;
+        }
+    }
 
     // Update the game state on PlayFab via CloudScript.
     void UpdateGameStateCloud()

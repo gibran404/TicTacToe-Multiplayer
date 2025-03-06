@@ -51,5 +51,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "TicTacToe.sln"
+    "dotnet.defaultSolution": "TicTacToe-Multiplayer.sln"
 }

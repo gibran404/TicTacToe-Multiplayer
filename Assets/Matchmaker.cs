@@ -17,6 +17,9 @@ public class Matchmaker : MonoBehaviour
 
     public void StartMatchmaking()
     {
+        // incase previous ticket is still up
+        CancelAllTickets();
+
         matchmakingStatus.text = "Searching for a match...";
         isMatchmaking = true;
 
@@ -41,7 +44,7 @@ public class Matchmaker : MonoBehaviour
     {
         CancelAllTickets();
         isMatchmaking = false;
-        matchmakingStatus.text = "";
+        matchmakingStatus.text = "left matchmaking";
     }
 
     void OnTicketCreated(CreateMatchmakingTicketResult result)
@@ -93,16 +96,18 @@ public class Matchmaker : MonoBehaviour
             string player1 = result.Members[0].Entity.Id;
             string player2 = result.Members[1].Entity.Id;
 
+            matchmakingStatus.alignment = TMPro.TextAlignmentOptions.BottomLeft;
+            matchmakingStatus.fontSize = 20;
             // Assume the local player is the creator (or determine based on your logic).
             if (player1 == PlayFabSettings.staticPlayer.EntityId)
             {
                 MyPlayerRole = "X";
-                matchmakingStatus.text = $"Matched! You are X vs O ({player2})";
+                matchmakingStatus.text = $"You are X\n({player2}) is O\nMatchId: {MatchId}";
             }
             else
             {
                 MyPlayerRole = "O";
-                matchmakingStatus.text = $"Matched! You are O vs X ({player1})";
+                matchmakingStatus.text = $"You are O\n({player1}) is X\nMatchId: {MatchId}";
             }
             Debug.Log("MatchId: " + MatchId);
             Invoke("EnableGamePanel", 1f);
