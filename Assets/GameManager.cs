@@ -7,36 +7,33 @@ using TMPro;
 
 public class GameManager : MonoBehaviour
 {
-    public Button[,] board = new Button[3, 3]; // Button references for cells.
-    private string[] boardState = new string[9]; // Store "X", "O", or " " for each cell.
+    public Button[,] board = new Button[3, 3];       // Button references for board cells.
+    private string[] boardState = new string[9];       // Stores "X", "O", or "-" for each cell.
     
-    public Text turnText;  // UI text to show whose turn it is.
-    public float pollInterval = 3f; // Seconds between polling the server.
+    public Text turnText;                             // UI text to show current turn or result.
+    public float pollInterval = 3f;                   // Seconds between server polling.
     
     private bool isGameOver = false;
     private int turnCount = 0;
 
-    // These variables come from matchmaking.
-    private string matchId => Matchmaker.MatchId;  
+    // Values from matchmaking.
+    private string matchId => Matchmaker.MatchId;
     private string myRole => Matchmaker.MyPlayerRole;  // "X" or "O"
     
-    // The current turn is stored as a string: "X" or "O".
+    // Current turn stored as "X" or "O".
     private string currentTurn = "X";
 
     void Start()
     {
         InitializeBoard();
         ResetBoardState();
-        // Start polling for game state updates.
+        // Begin polling server for match state updates.
         StartCoroutine(PollGameState());
-
-        for (int i = 0; i < boardState.Length; i++)
-            boardState[i] = "-";
     }
 
     void InitializeBoard()
     {
-        // Assumes that your board cells are named "0,0", "0,1", …, "2,2".
+        // Assumes board cells are named "0,0", "0,1", …, "2,2".
         for (int row = 0; row < 3; row++)
         {
             for (int col = 0; col < 3; col++)
@@ -47,7 +44,7 @@ public class GameManager : MonoBehaviour
                 {
                     Button cellButton = cellObject.GetComponent<Button>();
                     board[row, col] = cellButton;
-                    int index = row * 3 + col;  // Convert 2D position to 1D index.
+                    int index = row * 3 + col; // Convert 2D position to 1D index.
                     cellButton.onClick.AddListener(() => OnCellClicked(index));
                 }
             }
@@ -58,51 +55,50 @@ public class GameManager : MonoBehaviour
     void ResetBoardState()
     {
         for (int i = 0; i < boardState.Length; i++)
-            boardState[i] = "-"; // Initialize all cells as empty.
+            boardState[i] = "-"; // "-" indicates an empty cell.
         turnCount = 0;
         isGameOver = false;
-        currentTurn = "X"; // Let X always start.
+        currentTurn = "X"; // X always starts.
         UpdateBoardUI();
+        UpdateTurnText();
     }
 
-    // Called when a cell is clicked.
+    // Called when a board cell is clicked.
     void OnCellClicked(int index)
     {
         if (isGameOver) return;
 
-        // Only allow the move if it's this player's turn.
+        // Allow move only if it's this player's turn.
         if (currentTurn != myRole)
         {
             Debug.Log("Not your turn!");
             return;
         }
 
+        // If cell is already occupied, ignore.
         if (boardState[index] != "-")
-            return; // Ignore if cell is not empty.
+            return;
 
-        // Update local state.
+        // Update local board state.
         boardState[index] = myRole;
         turnCount++;
 
-        // Update local turn: switch turn.
+        // Switch turn locally.
         currentTurn = (myRole == "X") ? "O" : "X";
         UpdateBoardUI();
         UpdateTurnText();
 
-        // Save the updated state to PlayFab using CloudScript.
+        // Update the shared game state on the server.
         UpdateGameStateCloud();
-
-        
     }
 
-    // Convert the board state array to a single string.
+    // Convert local board state array to a single string.
     string BoardStateToString()
     {
-        Debug.Log("boardstate to string: " + string.Join("", boardState));
         return string.Join("", boardState);
     }
 
-    // Update the UI based on boardState.
+    // Update the board UI based on boardState.
     void UpdateBoardUI()
     {
         for (int row = 0; row < 3; row++)
@@ -110,11 +106,9 @@ public class GameManager : MonoBehaviour
             for (int col = 0; col < 3; col++)
             {
                 int index = row * 3 + col;
-                
-                // Assume each button has child GameObjects named "X" and "O" for the symbols.
+                // Assumes each button has child GameObjects named "X" and "O".
                 Transform xImage = board[row, col].transform.Find("X");
                 Transform oImage = board[row, col].transform.Find("O");
-
                 if (xImage != null && oImage != null)
                 {
                     xImage.gameObject.SetActive(boardState[index] == "X");
@@ -122,67 +116,96 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
-
     }
 
+    // Update turn text UI.
     void UpdateTurnText()
     {
-        if (currentTurn == myRole)
-            turnText.text = "Your Turn!";
-        else
-            turnText.text = "Opponent's Turn";
-    }
-
-    bool CheckWin()
-    {
-        // Check rows, columns, and diagonals
-        for (int i = 0; i < 3; i++)
-        {
-            if (boardState[i * 3] != "-" && boardState[i * 3] == boardState[i * 3 + 1] && boardState[i * 3 + 1] == boardState[i * 3 + 2]) // horizontal
-                return true;
-            if (boardState[i] != "-" && boardState[i] == boardState[i + 3] && boardState[i + 3] == boardState[i + 6]) // vertical
-                return true;
-        }
-        if (boardState[0] != "-" && boardState[0] == boardState[4] && boardState[4] == boardState[8]) // diagonal
-            return true;
-        if (boardState[2] != "-" && boardState[2] == boardState[4] && boardState[4] == boardState[6]) // diagonal
-            return true;
-
-        return false;
-    }
-
-    void CheckWinner()
-    {
-        // Check rows, columns, and diagonals
-        for (int i = 0; i < 3; i++)
-        {
-            if (boardState[i * 3] != "-" && boardState[i * 3] == boardState[i * 3 + 1] && boardState[i * 3 + 1] == boardState[i * 3 + 2]) // horizontal
-                isGameOver = true;
-            if (boardState[i] != "-" && boardState[i] == boardState[i + 3] && boardState[i + 3] == boardState[i + 6]) // vertical
-                isGameOver = true;
-        }
-        if (boardState[0] != "-" && boardState[0] == boardState[4] && boardState[4] == boardState[8]) // diagonal
-            isGameOver = true;
-        if (boardState[2] != "-" && boardState[2] == boardState[4] && boardState[4] == boardState[6]) // diagonal
-            isGameOver = true;
-
-        isGameOver = false;
-
         if (isGameOver)
+            return;
+        turnText.text = (currentTurn == myRole) ? "Your Turn!" : "Opponent's Turn";
+    }
+
+    // Poll the server for match state updates at regular intervals.
+    IEnumerator PollGameState()
+    {
+        while (true)
         {
-            if (currentTurn == myRole) // since checking after switching turn
-                turnText.text = "You Lose!";
-            else
-                turnText.text = $"You Win!";
-            isGameOver = true;
+            yield return new WaitForSeconds(pollInterval);
+            FetchGameStateCloud();
+        }
+    }
+
+    // Fetch current match state from CloudScript.
+    void FetchGameStateCloud()
+    {
+        if (string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogError("Match ID is missing.");
             return;
         }
+
+        var request = new ExecuteCloudScriptRequest
+        {
+            FunctionName = "getMatchState",
+            FunctionParameter = new { matchId = matchId },
+            GeneratePlayStreamEvent = false
+        };
+
+        PlayFabClientAPI.ExecuteCloudScript(request, result =>
+        {
+            if (result.FunctionResult != null)
+            {
+                var json = result.FunctionResult.ToString();
+                MatchStateResponse response = JsonUtility.FromJson<MatchStateResponse>(json);
+                if (response != null && response.data != null)
+                {
+                    string newBoard = response.data.boardState;
+                    string newTurn = response.data.turn;
+                    string newWinner = response.data.winner;
+                    Debug.Log("Fetched board state: " + newBoard + " | Winner: " + newWinner);
+
+                    // If a winner is found, update UI accordingly.
+                    if (!string.IsNullOrEmpty(newWinner))
+                    {
+                        isGameOver = true;
+                        turnText.text = (newWinner == myRole) ? "You Win!" : "You Lose!";
+                        // Update local board state.
+                        for (int i = 0; i < newBoard.Length && i < boardState.Length; i++)
+                        {
+                            boardState[i] = newBoard[i].ToString();
+                        }
+                        currentTurn = newTurn;
+                        UpdateBoardUI();
+                        return;
+                    }
+
+                    // Otherwise, update local board state if it differs.
+                    if (!string.IsNullOrEmpty(newBoard) && newBoard != BoardStateToString())
+                    {
+                        for (int i = 0; i < newBoard.Length && i < boardState.Length; i++)
+                        {
+                            boardState[i] = newBoard[i].ToString();
+                        }
+                        currentTurn = newTurn;
+                        UpdateBoardUI();
+                        UpdateTurnText();
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogError("No game state data returned.");
+            }
+        }, error =>
+        {
+            Debug.LogError("Error fetching game state: " + error.GenerateErrorReport());
+        });
     }
 
-    // Update the game state on PlayFab via CloudScript.
+    // Update the game state on the server via CloudScript.
     void UpdateGameStateCloud()
     {
-        Debug.Log("Updating game state...");
         if (string.IsNullOrEmpty(matchId))
         {
             Debug.LogError("Match ID is missing.");
@@ -203,97 +226,11 @@ public class GameManager : MonoBehaviour
         PlayFabClientAPI.ExecuteCloudScript(request, result =>
         {
             Debug.Log("Game state updated via CloudScript.");
-            //print the board state
             Debug.Log("Board state: " + BoardStateToString());
         }, error =>
         {
             Debug.LogError("Error updating game state: " + error.GenerateErrorReport());
         });
-    }
-
-    // Poll the game state from PlayFab at intervals.
-    IEnumerator PollGameState()
-    {
-        while (true)
-        {
-            yield return new WaitForSeconds(pollInterval);
-            FetchGameStateCloud();
-        }
-    }
-
-    // Fetch the current game state from CloudScript.
-    void FetchGameStateCloud()
-    {
-        if (currentTurn == myRole)
-        {
-            Debug.Log("Skipping fetch game state because it's own turn.");
-            return;
-        }
-        Debug.Log("Fetching game state...");
-        if (string.IsNullOrEmpty(matchId))
-        {
-            Debug.LogError("Match ID is missing.");
-            return;
-        }
-
-        var request = new ExecuteCloudScriptRequest
-        {
-            FunctionName = "getMatchState",
-            FunctionParameter = new { matchId = matchId },
-            GeneratePlayStreamEvent = false
-        };
-
-        PlayFabClientAPI.ExecuteCloudScript(request, result =>
-        {
-            if (result.FunctionResult != null)
-            {                // Parse the returned JSON. Expecting an object with Data.boardState and Data.turn.
-                var json = result.FunctionResult.ToString();
-                // You can use a JSON library or simple parsing; here we use JsonUtility for simplicity.
-                MatchStateResponse response = JsonUtility.FromJson<MatchStateResponse>(json);
-                if (response != null && response.data != null)
-                {
-                    string newBoard = response.data.boardState;
-                    string newTurn = response.data.turn;
-                    // Print the fetched board state.
-                    Debug.Log("Fetched board state: " + newBoard);
-                    // If the cloud state differs from local state, update local state.
-                    if (!string.IsNullOrEmpty(newBoard) && newBoard != BoardStateToString())
-                    {
-                        // Update local boardState.
-                        for (int i = 0; i < newBoard.Length && i < boardState.Length; i++)
-                        {
-                            boardState[i] = newBoard[i].ToString();
-                        } 
-                        currentTurn = newTurn;
-                        Debug.Log("boardstate: " + boardState);
-                        UpdateBoardUI();
-                        UpdateTurnText();
-                    }
-                }
-            }
-            else
-            {
-                Debug.LogError("No game state data returned."); 
-            }
-        }, error =>
-        {
-            Debug.LogError("Error fetching game state: " + error.GenerateErrorReport());
-        });
-    }
-
-    // Helper class to parse CloudScript response.
-    [System.Serializable]
-    public class MatchStateResponse
-    {
-        public string message;
-        public DataWrapper data;
-    }
-
-    [System.Serializable]
-    public class DataWrapper
-    {
-        public string boardState;
-        public string turn;
     }
 
     // Public method to restart the game.
@@ -304,17 +241,17 @@ public class GameManager : MonoBehaviour
     }
 }
 
+[System.Serializable]
+public class DataWrapper
+{
+    public string boardState;
+    public string turn;
+    public string winner;  // Winner ("X" or "O") if determined.
+}
 
 [System.Serializable]
 public class MatchStateResponse
 {
     public string message;
     public DataWrapper data;
-}
-
-[System.Serializable]
-public class DataWrapper
-{
-    public string boardState;
-    public string turn;
 }

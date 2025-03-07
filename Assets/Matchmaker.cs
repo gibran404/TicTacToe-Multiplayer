@@ -7,17 +7,16 @@ using System.Collections.Generic;
 public class Matchmaker : MonoBehaviour
 {
     public TMP_Text matchmakingStatus;
-    public static string MatchId;       // Store the match ID globally.
+    public static string MatchId;       // Global match (shared group) ID.
     public static string MyPlayerRole;  // "X" or "O" assigned based on matchmaking.
     private string ticketId;
     private bool isMatchmaking = false;
     public GameObject gamePanel;
     public GameObject introPanel;
 
-
     public void StartMatchmaking()
     {
-        // incase previous ticket is still up
+        // Cancel any existing tickets.
         CancelAllTickets();
 
         matchmakingStatus.text = "Searching for a match...";
@@ -44,7 +43,7 @@ public class Matchmaker : MonoBehaviour
     {
         CancelAllTickets();
         isMatchmaking = false;
-        matchmakingStatus.text = "left matchmaking";
+        matchmakingStatus.text = "Left matchmaking";
     }
 
     void OnTicketCreated(CreateMatchmakingTicketResult result)
@@ -87,9 +86,6 @@ public class Matchmaker : MonoBehaviour
     {
         Debug.Log($"Match Found: {JsonUtility.ToJson(result)}");
 
-        // For this example, we assume that the match result includes a match ID and a list of members.
-        // Assign roles based on team assignment or member order.
-        // Here we use a simple rule: first member gets "X", second gets "O".
         if (result.Members != null && result.Members.Count >= 2)
         {
             MatchId = result.MatchId; // Use match ID as SharedGroupId.
@@ -98,7 +94,8 @@ public class Matchmaker : MonoBehaviour
 
             matchmakingStatus.alignment = TMPro.TextAlignmentOptions.BottomLeft;
             matchmakingStatus.fontSize = 20;
-            // Assume the local player is the creator (or determine based on your logic).
+
+            // Simple rule: first member is X, second is O.
             if (player1 == PlayFabSettings.staticPlayer.EntityId)
             {
                 MyPlayerRole = "X";

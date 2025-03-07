@@ -29,7 +29,6 @@ public class PlayFabLogin : MonoBehaviour
     {
         statusText.text = "Logged in!";
         playButton.SetActive(true);
-        // After 1 second, clear the status text.
         Invoke("ClearStatusText", 1f);
     }
 
