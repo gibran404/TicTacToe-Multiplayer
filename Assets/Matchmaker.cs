@@ -7,8 +7,8 @@ using System.Collections.Generic;
 public class Matchmaker : MonoBehaviour
 {
     public TMP_Text matchmakingStatus;
-    public static string MatchId;       // Global match (shared group) ID.
-    public static string MyPlayerRole;  // "X" or "O" assigned based on matchmaking.
+    public static string MatchId;       // Shared group ID.
+    public static string MyPlayerRole;  // "X" or "O"
     private string ticketId;
     private bool isMatchmaking = false;
     public GameObject gamePanel;
@@ -16,7 +16,6 @@ public class Matchmaker : MonoBehaviour
 
     public void StartMatchmaking()
     {
-        // Cancel any existing tickets.
         CancelAllTickets();
 
         matchmakingStatus.text = "Searching for a match...";
@@ -88,25 +87,25 @@ public class Matchmaker : MonoBehaviour
 
         if (result.Members != null && result.Members.Count >= 2)
         {
-            MatchId = result.MatchId; // Use match ID as SharedGroupId.
+            // Compute shared group ID from concatenated (sorted) player IDs.
             string player1 = result.Members[0].Entity.Id;
             string player2 = result.Members[1].Entity.Id;
-
-            matchmakingStatus.alignment = TMPro.TextAlignmentOptions.BottomLeft;
-            matchmakingStatus.fontSize = 20;
-
-            // Simple rule: first member is X, second is O.
+            string sharedGroupId = (player1.CompareTo(player2) <= 0) 
+                ? player1 + "_" + player2 
+                : player2 + "_" + player1;
+            MatchId = sharedGroupId;
+            
             if (player1 == PlayFabSettings.staticPlayer.EntityId)
             {
                 MyPlayerRole = "X";
-                matchmakingStatus.text = $"You are X\n({player2}) is O\nMatchId: {MatchId}";
+                matchmakingStatus.text = $"You are X\n({player2}) is O\nGroupId: {MatchId}";
             }
             else
             {
                 MyPlayerRole = "O";
-                matchmakingStatus.text = $"You are O\n({player1}) is X\nMatchId: {MatchId}";
+                matchmakingStatus.text = $"You are O\n({player1}) is X\nGroupId: {MatchId}";
             }
-            Debug.Log("MatchId: " + MatchId);
+            Debug.Log("SharedGroupId: " + MatchId);
             Invoke("EnableGamePanel", 1f);
         }
         else
