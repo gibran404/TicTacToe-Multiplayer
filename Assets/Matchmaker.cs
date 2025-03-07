@@ -9,6 +9,7 @@ public class Matchmaker : MonoBehaviour
     public TMP_Text matchmakingStatus;
     public static string MatchId;       // Shared group ID.
     public static string MyPlayerRole;  // "X" or "O"
+    public static string OpponentId;    // Opponent's ID.
     private string ticketId;
     private bool isMatchmaking = false;
     public GameObject gamePanel;
@@ -17,7 +18,6 @@ public class Matchmaker : MonoBehaviour
     public void StartMatchmaking()
     {
         CancelAllTickets();
-
         matchmakingStatus.text = "Searching for a match...";
         isMatchmaking = true;
 
@@ -38,7 +38,7 @@ public class Matchmaker : MonoBehaviour
         PlayFabMultiplayerAPI.CreateMatchmakingTicket(request, OnTicketCreated, OnMatchmakingFailed);
     }
 
-    public void LeaveMatchMaking()
+    public void LeaveMatchmaking()
     {
         CancelAllTickets();
         isMatchmaking = false;
@@ -87,7 +87,7 @@ public class Matchmaker : MonoBehaviour
 
         if (result.Members != null && result.Members.Count >= 2)
         {
-            // Compute shared group ID from concatenated (sorted) player IDs.
+            // Compute shared group ID by concatenating sorted player IDs.
             string player1 = result.Members[0].Entity.Id;
             string player2 = result.Members[1].Entity.Id;
             string sharedGroupId = (player1.CompareTo(player2) <= 0) 
@@ -95,14 +95,17 @@ public class Matchmaker : MonoBehaviour
                 : player2 + "_" + player1;
             MatchId = sharedGroupId;
             
+            // Determine assignment.
             if (player1 == PlayFabSettings.staticPlayer.EntityId)
             {
                 MyPlayerRole = "X";
+                OpponentId = player2;
                 matchmakingStatus.text = $"You are X\n({player2}) is O\nGroupId: {MatchId}";
             }
             else
             {
                 MyPlayerRole = "O";
+                OpponentId = player1;
                 matchmakingStatus.text = $"You are O\n({player1}) is X\nGroupId: {MatchId}";
             }
             Debug.Log("SharedGroupId: " + MatchId);
