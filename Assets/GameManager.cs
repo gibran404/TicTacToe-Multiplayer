@@ -24,12 +24,26 @@ public class GameManager : MonoBehaviour
     // Current turn ("X" or "O").
     private string currentTurn = "X";
 
+    public GameObject RestartButton;
+
     void Start()
     {
         InitializeBoard();
         // On startup, initialize match state from the cloud.
         InitializeMatchStateFromCloud();
         StartCoroutine(PollGameState());
+    }
+
+    void Update()
+    {
+        if (isGameOver)
+        {
+            RestartButton.SetActive(true);
+        }
+        else
+        {
+            RestartButton.SetActive(false);
+        }
     }
 
     // Check cloud for previous state.
@@ -78,7 +92,7 @@ public class GameManager : MonoBehaviour
                             }
                             currentTurn = fetchedTurn;
                             turnCount = fetchedTurnCount;
-                            Debug.Log("Loaded state: " + fetchedBoard + ", Turn: " + fetchedTurn + ", TurnCount: " + fetchedTurnCount);
+                            Debug.Log("Loaded state: " + fetchedBoard + ", Turn: " + fetchedTurn + ", TurnCount: " + fetchedTurnCount + "local IsGameOver: " + isGameOver);
                             UpdateBoardUI();
                             UpdateTurnText();
                         }
@@ -150,25 +164,25 @@ public class GameManager : MonoBehaviour
         UpdateBoardUI();
 
         // Check local win.
-        if (CheckWin())
-        {
-            isGameOver = true;
-            turnText.text = "You Win!";
-            isMovePending = true;
-            UpdateGameStateCloud();
-            return;
-        }
-        else if (turnCount >= 9)
-        {
-            isGameOver = true;
-            turnText.text = "It's a Draw!";
-            isMovePending = true;
-            UpdateGameStateCloud();
-            return;
-        }
+        // if (CheckWin())
+        // {
+        //     isGameOver = true;
+        //     turnText.text = "You Winnn!";
+        //     isMovePending = true;
+        //     UpdateGameStateCloud();
+        //     return;
+        // }
+        // else if (turnCount >= 9)
+        // {
+        //     isGameOver = true;
+        //     turnText.text = "It's a Draw!";
+        //     isMovePending = true;
+        //     UpdateGameStateCloud();
+        //     return;
+        // }
 
         currentTurn = (myRole == "X") ? "O" : "X";
-        UpdateTurnText();
+        // UpdateTurnText();
         isMovePending = true;
         UpdateGameStateCloud();
     }
@@ -206,28 +220,28 @@ public class GameManager : MonoBehaviour
     }
 
     // Local win-check.
-    bool CheckWin()
-    {
-        // Rows.
-        for (int i = 0; i < 3; i++)
-        {
-            int start = i * 3;
-            if (boardState[start] != "-" && boardState[start] == boardState[start + 1] && boardState[start + 1] == boardState[start + 2])
-                return true;
-        }
-        // Columns.
-        for (int i = 0; i < 3; i++)
-        {
-            if (boardState[i] != "-" && boardState[i] == boardState[i + 3] && boardState[i + 3] == boardState[i + 6])
-                return true;
-        }
-        // Diagonals.
-        if (boardState[0] != "-" && boardState[0] == boardState[4] && boardState[4] == boardState[8])
-            return true;
-        if (boardState[2] != "-" && boardState[2] == boardState[4] && boardState[4] == boardState[6])
-            return true;
-        return false;
-    }
+    // bool CheckWin()
+    // {
+    //     // Rows.
+    //     for (int i = 0; i < 3; i++)
+    //     {
+    //         int start = i * 3;
+    //         if (boardState[start] != "-" && boardState[start] == boardState[start + 1] && boardState[start + 1] == boardState[start + 2])
+    //             return true;
+    //     }
+    //     // Columns.
+    //     for (int i = 0; i < 3; i++)
+    //     {
+    //         if (boardState[i] != "-" && boardState[i] == boardState[i + 3] && boardState[i + 3] == boardState[i + 6])
+    //             return true;
+    //     }
+    //     // Diagonals.
+    //     if (boardState[0] != "-" && boardState[0] == boardState[4] && boardState[4] == boardState[8])
+    //         return true;
+    //     if (boardState[2] != "-" && boardState[2] == boardState[4] && boardState[4] == boardState[6])
+    //         return true;
+    //     return false;
+    // }
 
     // Poll the server for updates.
     IEnumerator PollGameState()
@@ -235,9 +249,9 @@ public class GameManager : MonoBehaviour
         while (true)
         {
             yield return new WaitForSeconds(pollInterval);
-            if (isMovePending || currentTurn == myRole || isGameOver)
+            if ((isMovePending || currentTurn == myRole) && !isGameOver)
             {
-                Debug.Log("Skipping poll (move pending, my turn, or game over).");
+                Debug.Log("Skipping poll (move pending, my turn.");
                 continue;
             }
             FetchGameStateCloud();
@@ -278,6 +292,7 @@ public class GameManager : MonoBehaviour
                     
                     if (!string.IsNullOrEmpty(newWinner))
                     {
+                        Debug.Log("isGameOver: " + isGameOver);
                         isGameOver = true;
                         turnText.text = (newWinner == myRole) ? "You Win!" : (newWinner == "draw" ? "Draw!" : "You Lose!");
                         for (int i = 0; i < newBoard.Length && i < boardState.Length; i++)
@@ -287,10 +302,16 @@ public class GameManager : MonoBehaviour
                         currentTurn = newTurn;
                         turnCount = newTurnCount;
                         UpdateBoardUI();
+                        Debug.Log("Game over. Winner: " + newWinner + "isGameOver: " + isGameOver);
                         return;
                     }
+                    else
+                    {
+                        isGameOver = false;
+                    }
                     
-                    if (!string.IsNullOrEmpty(newBoard) && newBoard != BoardStateToString())
+                    
+                    if (!string.IsNullOrEmpty(newBoard) )
                     {
                         for (int i = 0; i < newBoard.Length && i < boardState.Length; i++)
                         {
@@ -376,7 +397,9 @@ public class GameManager : MonoBehaviour
     // Restart game: reset local state and call the server reset function.
     public void RestartGame()
     {
+        Debug.Log("Restarting game.");
         ResetBoardState();
+        isGameOver = false;
         if (string.IsNullOrEmpty(matchId))
         {
             Debug.LogError("Match ID is missing.");
