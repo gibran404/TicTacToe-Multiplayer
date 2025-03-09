@@ -28,7 +28,6 @@ public class PlayFabLogin : MonoBehaviour
     void OnLoginSuccess(LoginResult result)
     {
         statusText.text = "Logged in!";
-        playButton.SetActive(true);
         Invoke("ClearStatusText", 1f);
     }
 
@@ -41,5 +40,7 @@ public class PlayFabLogin : MonoBehaviour
     {
         if (statusText.text == "Logged in!")
             statusText.text = "";
+        playButton.SetActive(true);
+
     }
 }

@@ -287,7 +287,7 @@ public class GameManager : MonoBehaviour
                 else
                 {
                     isGameOver = false;
-                    turnText.text = (newTurn == myRole) ? "Your Tur nnn!" : "Opponent's Turnnn";
+                    turnText.text = (newTurn == myRole) ? "Your Turn!" : "Opponent's Turn";
                 }
                 // Update local state if board string differs.
                 if (!string.IsNullOrEmpty(newBoard) && newBoard != BoardStateToString())

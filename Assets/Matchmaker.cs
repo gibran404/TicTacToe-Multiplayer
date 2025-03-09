@@ -17,7 +17,7 @@ public class Matchmaker : MonoBehaviour
 
     public void StartMatchmaking()
     {
-        CancelAllTickets();
+        // CancelAllTickets();
         matchmakingStatus.text = "Searching for a match...";
         isMatchmaking = true;
 
@@ -31,7 +31,7 @@ public class Matchmaker : MonoBehaviour
                     Type = PlayFabSettings.staticPlayer.EntityType
                 }
             },
-            GiveUpAfterSeconds = 60,
+            GiveUpAfterSeconds = 69,
             QueueName = "TicTacToeQueue"
         };
 
@@ -42,13 +42,13 @@ public class Matchmaker : MonoBehaviour
     {
         CancelAllTickets();
         isMatchmaking = false;
-        matchmakingStatus.text = "Left matchmaking";
+        matchmakingStatus.text = "";
     }
 
     void OnTicketCreated(CreateMatchmakingTicketResult result)
     {
         ticketId = result.TicketId;
-        InvokeRepeating(nameof(CheckMatchmakingStatus), 5f, 5f);
+        InvokeRepeating(nameof(CheckMatchmakingStatus), 2f, 2f);
     }
 
     void CheckMatchmakingStatus()
@@ -100,13 +100,13 @@ public class Matchmaker : MonoBehaviour
             {
                 MyPlayerRole = "X";
                 OpponentId = player2;
-                matchmakingStatus.text = $"You are X\n({player2}) is O\nGroupId: {MatchId}";
+                matchmakingStatus.text = $"You are X";
             }
             else
             {
                 MyPlayerRole = "O";
                 OpponentId = player1;
-                matchmakingStatus.text = $"You are O\n({player1}) is X\nGroupId: {MatchId}";
+                matchmakingStatus.text = $"You are O";
             }
             Debug.Log("SharedGroupId: " + MatchId);
             Invoke("EnableGamePanel", 1f);
@@ -125,7 +125,7 @@ public class Matchmaker : MonoBehaviour
 
     void OnMatchmakingFailed(PlayFabError error)
     {
-        matchmakingStatus.text = "Matchmaking Failed: " + error.GenerateErrorReport();
+        matchmakingStatus.text = "Matchmaking Failed\nStop Spamming Buttons!";
     }
 
     void CancelAllTickets()
