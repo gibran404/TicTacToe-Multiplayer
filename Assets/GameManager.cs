@@ -42,10 +42,10 @@ public class HeartbeatResponse
 public class GameManager : MonoBehaviour
 {
     // UI references
-    public Text turnText;         // Displays turn or result.
+    public Text turnText;         // Displays whose turn or game result.
     public GameObject RestartButton;
-    public float pollInterval = 3f;       // Polling interval in seconds.
-    public float heartbeatInterval = 5f;  // Heartbeat interval in seconds.
+    public float pollInterval = 3f;       // Polling interval (seconds).
+    public float heartbeatInterval = 5f;  // Heartbeat interval (seconds).
 
     // Board data
     private Button[,] board = new Button[3, 3];  // Board cell buttons.
@@ -54,10 +54,13 @@ public class GameManager : MonoBehaviour
     // Game state
     private bool isGameOver = false;
     private int turnCount = 0;
-    private bool isMovePending = false;  // Prevents simultaneous update/polling.
+    private bool isMovePending = false;  // Blocks simultaneous update/polling.
     private string currentTurn = "X";    // "X" or "O" indicates whose turn.
+    
+    // New variable: indicates if the opponent is online.
+    private bool opponentOnline = true;
 
-    // Match info (set via Matchmaker)
+    // Match info (set by Matchmaker)
     private string matchId => Matchmaker.MatchId;
     private string myRole => Matchmaker.MyPlayerRole;
 
@@ -107,7 +110,7 @@ public class GameManager : MonoBehaviour
         UpdateTurnText();
     }
 
-    // Fetch match state from cloud on startup.
+    // Initialize match state from the cloud on startup.
     void InitializeMatchStateFromCloud()
     {
         if (string.IsNullOrEmpty(matchId))
@@ -203,7 +206,7 @@ public class GameManager : MonoBehaviour
         UpdateGameStateCloud();
     }
 
-    // Convert board state array to string.
+    // Convert board state array to a string.
     string BoardStateToString() => string.Join("", boardState);
 
     // Update board UI visuals.
@@ -232,7 +235,7 @@ public class GameManager : MonoBehaviour
             turnText.text = (currentTurn == myRole) ? "Your Turn!" : "Opponent's Turn";
     }
 
-    // Check win condition locally for a 3x3 board.
+    // Local win-check for a 3x3 board.
     bool CheckWin()
     {
         for (int i = 0; i < 3; i++)
@@ -267,9 +270,10 @@ public class GameManager : MonoBehaviour
         while (true)
         {
             yield return new WaitForSeconds(pollInterval);
-            if ((isMovePending || currentTurn == myRole) && !isGameOver)
+            // Only poll if it's not our turn, no move is pending, and the opponent is online.
+            if (((isMovePending || currentTurn == myRole) && !isGameOver) || !opponentOnline)
             {
-                // Debug.Log("Skipping poll (move pending or my turn).");
+                // Debug.Log("Skipping poll (move pending, my turn, or opponent offline, or gameover).");
                 continue;
             }
             FetchGameStateCloud();
@@ -286,7 +290,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // Send heartbeat to the server and process the ping difference.
+    // Send heartbeat to the server and update opponentOnline based on ping difference.
     void SendHeartbeat()
     {
         if (string.IsNullOrEmpty(matchId))
@@ -308,14 +312,26 @@ public class GameManager : MonoBehaviour
                 if (hbResponse != null && hbResponse.data != null)
                 {
                     float pingDiff = hbResponse.data.pingDifference;
-                    Debug.Log("Ping difference between players: " + pingDiff + " seconds");
+                    Debug.Log("Ping difference: " + pingDiff + " seconds");
                     if (pingDiff > 10)
                     {
-                        Debug.Log("Opponent offline");
+                        if (opponentOnline)
+                        {
+                            turnText.text = "Opponent offline";
+                        }
+                        opponentOnline = false;
+                        // Debug.Log("Opponent offline");
+                        
                     }
                     else
                     {
-
+                        if (!opponentOnline)
+                        {
+                            UpdateTurnText();
+                        }
+                        opponentOnline = true;
+                        // Debug.Log("Opponent active");
+                        
                     }
                 }
             }
@@ -329,7 +345,7 @@ public class GameManager : MonoBehaviour
         });
     }
 
-    // Fetch match state from the server.
+    // Fetch current match state from the server.
     void FetchGameStateCloud()
     {
         if (string.IsNullOrEmpty(matchId))
