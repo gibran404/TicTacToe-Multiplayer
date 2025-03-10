@@ -2,25 +2,60 @@ using UnityEngine;
 using UnityEngine.UI;
 using PlayFab;
 using PlayFab.ClientModels;
+using System;
 using System.Collections;
 using TMPro;
+
+[Serializable]
+public class DataWrapper
+{
+    public string boardState;
+    public string turn;
+    public string turnCount;
+    public string winner;           // "X", "O", "draw", or "".
+    public string playerX;          // Assigned player for X.
+    public string playerO;          // Assigned player for O.
+    public string playerXlastActive;// Last active timestamp for player X.
+    public string playerOlastActive;// Last active timestamp for player O.
+}
+
+[Serializable]
+public class MatchStateResponse
+{
+    public string message;
+    public DataWrapper data;
+}
+
+[Serializable]
+public class HeartbeatData
+{
+    public float pingDifference;
+}
+
+[Serializable]
+public class HeartbeatResponse
+{
+    public string message;
+    public HeartbeatData data;
+}
 
 public class GameManager : MonoBehaviour
 {
     // UI references
-    public Text turnText;         // Displays whose turn or result
+    public Text turnText;         // Displays turn or result.
     public GameObject RestartButton;
+    public float pollInterval = 3f;       // Polling interval in seconds.
+    public float heartbeatInterval = 5f;  // Heartbeat interval in seconds.
 
     // Board data
-    public float pollInterval = 3f;       // Poll interval (seconds)
-    private Button[,] board = new Button[3, 3];  // Button references (assumes naming "0,0", "0,1", etc.)
-    private string[] boardState = new string[9]; // Each cell: "X", "O", or "-" (empty)
+    private Button[,] board = new Button[3, 3];  // Board cell buttons.
+    private string[] boardState = new string[9]; // "X", "O", or "-" for each cell.
 
     // Game state
     private bool isGameOver = false;
     private int turnCount = 0;
-    private bool isMovePending = false;  // Prevents simultaneous update/polling
-    private string currentTurn = "X";    // "X" or "O" indicates who is to play
+    private bool isMovePending = false;  // Prevents simultaneous update/polling.
+    private string currentTurn = "X";    // "X" or "O" indicates whose turn.
 
     // Match info (set via Matchmaker)
     private string matchId => Matchmaker.MatchId;
@@ -31,6 +66,7 @@ public class GameManager : MonoBehaviour
         InitializeBoard();
         InitializeMatchStateFromCloud();
         StartCoroutine(PollGameStateRoutine());
+        StartCoroutine(HeartbeatRoutine());
     }
 
     void Update()
@@ -38,7 +74,7 @@ public class GameManager : MonoBehaviour
         RestartButton.SetActive(isGameOver);
     }
 
-    // Initialize board buttons and local boardState array.
+    // Initialize board by finding buttons named "0,0", "0,1", etc.
     void InitializeBoard()
     {
         for (int row = 0; row < 3; row++)
@@ -71,7 +107,7 @@ public class GameManager : MonoBehaviour
         UpdateTurnText();
     }
 
-    // Fetch cloud state on start; if previous game ended, reset.
+    // Fetch match state from cloud on startup.
     void InitializeMatchStateFromCloud()
     {
         if (string.IsNullOrEmpty(matchId))
@@ -90,7 +126,7 @@ public class GameManager : MonoBehaviour
         {
             if (result.FunctionResult != null)
             {
-                var response = JsonUtility.FromJson<MatchStateResponse>(result.FunctionResult.ToString());
+                MatchStateResponse response = JsonUtility.FromJson<MatchStateResponse>(result.FunctionResult.ToString());
                 if (response != null && response.data != null)
                 {
                     if (!string.IsNullOrEmpty(response.data.winner))
@@ -120,13 +156,13 @@ public class GameManager : MonoBehaviour
         });
     }
 
-    // Load local state from fetched cloud data.
+    // Load local state from cloud data.
     void LoadState(string boardStr, string turnStr, string turnCountStr)
     {
         for (int i = 0; i < boardStr.Length && i < boardState.Length; i++)
             boardState[i] = boardStr[i].ToString();
         currentTurn = turnStr;
-        turnCount = int.Parse(turnCountStr);
+        int.TryParse(turnCountStr, out turnCount);
         Debug.Log($"Loaded state: {boardStr}, Turn: {turnStr}, TurnCount: {turnCount}");
         UpdateBoardUI();
         UpdateTurnText();
@@ -141,14 +177,12 @@ public class GameManager : MonoBehaviour
             Debug.Log("Not your turn!");
             return;
         }
-        if (boardState[index] != "-") return; // Already occupied
+        if (boardState[index] != "-") return;
 
-        // Make the move.
         boardState[index] = myRole;
         turnCount++;
         UpdateBoardUI();
 
-        // Check win/draw locally.
         if (CheckWin())
         {
             isGameOver = true;
@@ -169,7 +203,7 @@ public class GameManager : MonoBehaviour
         UpdateGameStateCloud();
     }
 
-    // Convert boardState array into a string.
+    // Convert board state array to string.
     string BoardStateToString() => string.Join("", boardState);
 
     // Update board UI visuals.
@@ -201,7 +235,6 @@ public class GameManager : MonoBehaviour
     // Check win condition locally for a 3x3 board.
     bool CheckWin()
     {
-        // Check rows.
         for (int i = 0; i < 3; i++)
         {
             int start = i * 3;
@@ -210,7 +243,6 @@ public class GameManager : MonoBehaviour
                 boardState[start + 1] == boardState[start + 2])
                 return true;
         }
-        // Check columns.
         for (int i = 0; i < 3; i++)
         {
             if (boardState[i] != "-" &&
@@ -218,7 +250,6 @@ public class GameManager : MonoBehaviour
                 boardState[i + 3] == boardState[i + 6])
                 return true;
         }
-        // Check diagonals.
         if (boardState[0] != "-" &&
             boardState[0] == boardState[4] &&
             boardState[4] == boardState[8])
@@ -230,23 +261,75 @@ public class GameManager : MonoBehaviour
         return false;
     }
 
-    // Poll the server periodically.
+    // Poll the server for match state updates.
     IEnumerator PollGameStateRoutine()
     {
         while (true)
         {
             yield return new WaitForSeconds(pollInterval);
-            // Poll only if not our turn, no move pending, and game not over.
             if ((isMovePending || currentTurn == myRole) && !isGameOver)
             {
-                Debug.Log("Skipping poll (move pending, my turn).");
+                // Debug.Log("Skipping poll (move pending or my turn).");
                 continue;
             }
             FetchGameStateCloud();
         }
     }
 
-    // Fetch current match state from cloud.
+    // Heartbeat routine: sends a heartbeat every heartbeatInterval seconds.
+    IEnumerator HeartbeatRoutine()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(heartbeatInterval);
+            SendHeartbeat();
+        }
+    }
+
+    // Send heartbeat to the server and process the ping difference.
+    void SendHeartbeat()
+    {
+        if (string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogError("Match ID is missing, cannot send heartbeat.");
+            return;
+        }
+        var request = new ExecuteCloudScriptRequest
+        {
+            FunctionName = "heartbeat",
+            FunctionParameter = new { matchId = matchId, role = myRole },
+            GeneratePlayStreamEvent = false
+        };
+        PlayFabClientAPI.ExecuteCloudScript(request, result =>
+        {
+            if (result.FunctionResult != null)
+            {
+                HeartbeatResponse hbResponse = JsonUtility.FromJson<HeartbeatResponse>(result.FunctionResult.ToString());
+                if (hbResponse != null && hbResponse.data != null)
+                {
+                    float pingDiff = hbResponse.data.pingDifference;
+                    Debug.Log("Ping difference between players: " + pingDiff + " seconds");
+                    if (pingDiff > 10)
+                    {
+                        Debug.Log("Opponent offline");
+                    }
+                    else
+                    {
+
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogError("Heartbeat: No result returned.");
+            }
+        }, error =>
+        {
+            Debug.LogError("Error sending heartbeat: " + error.GenerateErrorReport());
+        });
+    }
+
+    // Fetch match state from the server.
     void FetchGameStateCloud()
     {
         if (string.IsNullOrEmpty(matchId))
@@ -267,7 +350,7 @@ public class GameManager : MonoBehaviour
                 Debug.LogError("No match state data returned.");
                 return;
             }
-            var response = JsonUtility.FromJson<MatchStateResponse>(result.FunctionResult.ToString());
+            MatchStateResponse response = JsonUtility.FromJson<MatchStateResponse>(result.FunctionResult.ToString());
             if (response?.data != null)
             {
                 string newBoard = response.data.boardState;
@@ -275,8 +358,8 @@ public class GameManager : MonoBehaviour
                 string newWinner = response.data.winner;
                 int newTurnCount = 0;
                 int.TryParse(response.data.turnCount, out newTurnCount);
-                Debug.Log($"Fetched state: Board: {newBoard}, Winner: {newWinner}, Turn: {newTurn}, TurnCount: {newTurnCount}");
-
+                // Debug.Log($"Fetched state: Board: {newBoard}, Winner: {newWinner}, Turn: {newTurn}, TurnCount: {newTurnCount}");
+                
                 if (!string.IsNullOrEmpty(newWinner))
                 {
                     isGameOver = true;
@@ -289,7 +372,6 @@ public class GameManager : MonoBehaviour
                     isGameOver = false;
                     turnText.text = (newTurn == myRole) ? "Your Turn!" : "Opponent's Turn";
                 }
-                // Update local state if board string differs.
                 if (!string.IsNullOrEmpty(newBoard) && newBoard != BoardStateToString())
                 {
                     LoadState(newBoard, newTurn, response.data.turnCount);
@@ -301,7 +383,7 @@ public class GameManager : MonoBehaviour
         });
     }
 
-    // Send current state to cloud (including turnCount and, if reset, player assignments).
+    // Update the match state on the server.
     void UpdateGameStateCloud()
     {
         if (string.IsNullOrEmpty(matchId))
@@ -316,7 +398,6 @@ public class GameManager : MonoBehaviour
             { "turn", currentTurn },
             { "turnCount", turnCount }
         };
-        // If resetting (turnCount==0), include player assignments.
         if (turnCount == 0)
         {
             param["playerX"] = (myRole == "X") ? PlayFabSettings.staticPlayer.EntityId : Matchmaker.OpponentId;
@@ -366,23 +447,4 @@ public class GameManager : MonoBehaviour
             Debug.LogError("Error resetting state: " + error.GenerateErrorReport());
         });
     }
-}
-
-// Data model for JSON parsing.
-[System.Serializable]
-public class DataWrapper
-{
-    public string boardState;
-    public string turn;
-    public string turnCount;
-    public string winner;  // "X", "O", "draw", or "".
-    public string playerX; // Player assigned as X.
-    public string playerO; // Player assigned as O.
-}
-
-[System.Serializable]
-public class MatchStateResponse
-{
-    public string message;
-    public DataWrapper data;
 }
