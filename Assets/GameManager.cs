@@ -44,8 +44,8 @@ public class GameManager : MonoBehaviour
     // UI references
     public Text turnText;         // Displays whose turn or game result.
     public GameObject RestartButton;
-    public float pollInterval = 3f;       // Polling interval (seconds).
-    public float heartbeatInterval = 5f;  // Heartbeat interval (seconds).
+    public float pollInterval = 2f;       // Polling interval (seconds).
+    public float heartbeatInterval = 2f;  // Heartbeat interval (seconds).
 
     // Board data
     private Button[,] board = new Button[3, 3];  // Board cell buttons.
@@ -59,6 +59,8 @@ public class GameManager : MonoBehaviour
     
     // New variable: indicates if the opponent is online.
     private bool opponentOnline = true;
+
+    public GameObject DisconnectPanel;
 
     // Match info (set by Matchmaker)
     private string matchId => Matchmaker.MatchId;
@@ -317,21 +319,21 @@ public class GameManager : MonoBehaviour
                     {
                         if (opponentOnline)
                         {
-                            turnText.text = "Opponent offline";
+                            // turnText.text = "Opponent offline";
+                            DisconnectPanel.SetActive(true);
                         }
                         opponentOnline = false;
                         // Debug.Log("Opponent offline");
-                        
                     }
                     else
                     {
                         if (!opponentOnline)
                         {
-                            UpdateTurnText();
+                            DisconnectPanel.SetActive(false);
+                            // UpdateTurnText();
                         }
                         opponentOnline = true;
                         // Debug.Log("Opponent active");
-                        
                     }
                 }
             }
